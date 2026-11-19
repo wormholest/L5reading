@@ -176,7 +176,24 @@ const zhOf=w=>(w.s[0].d.match(/^[^a-zA-Z]+/)||[''])[0].trim();
 vt.innerHTML=W.map((w,i)=>`<button class="tile" data-i="${i}">${w.x?'<em>比較</em>':''}<b>${i+1}. ${w.w}</b><span>${zhOf(w)}</span></button>`).join('');
 mk.onchange=()=>{vt.classList.toggle('mask',mk.checked);vt.querySelectorAll('.tile').forEach(t=>t.classList.remove('show'))};
 vt.onclick=e=>{const t=e.target.closest('.tile');if(!t)return;if(vt.classList.contains('mask')&&!t.classList.contains('show')){t.classList.add('show');return}open_(+t.dataset.i)};
-let cur=0,utter=null;
+let cur=0,utter=null,iosUnlocked=false;
+
+// iOS 專用：在第一次點擊螢幕的任何地方時，先靜音喚醒系統語音引擎並載入語音包
+function unlockIOS(){
+  if(iosUnlocked)return;
+  iosUnlocked=true;
+  try{
+    if('speechSynthesis' in window){
+      window.speechSynthesis.getVoices();
+      const u=new SpeechSynthesisUtterance('');
+      u.volume=0;
+      window.speechSynthesis.speak(u);
+    }
+  }catch(e){}
+}
+document.addEventListener('touchstart',unlockIOS,{passive:true});
+document.addEventListener('click',unlockIOS,{passive:true});
+
 if(typeof window!=='undefined'&&'speechSynthesis' in window){try{window.speechSynthesis.getVoices();window.speechSynthesis.onvoiceschanged=()=>{try{window.speechSynthesis.getVoices()}catch(e){}}}catch(e){}}
 
 function showAudioStatus(msg){
@@ -196,11 +213,10 @@ function playDirectAudio(text){
     }
     a.pause();
     a.src=`https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(text)}&type=2`;
-    showAudioStatus('🔊 載入發音中...');
     a.onplaying=()=>showAudioStatus('🔊 正在播放');
     a.onended=()=>showAudioStatus('');
     a.onerror=()=>{
-      a.onerror=()=>showAudioStatus('⚠️ 線上語音受阻');
+      a.onerror=()=>showAudioStatus('');
       a.src=`https://translate.google.com/translate_tts?ie=UTF-8&tl=en-US&client=tw-ob&q=${encodeURIComponent(text)}`;
       a.play().catch(()=>showAudioStatus(''));
     };
@@ -212,34 +228,39 @@ function playDirectAudio(text){
 function speak(t, isWord=false){
   const text=String(t).replace(/\*/g,'').trim();
   if(!text)return;
+  const isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-  // 1. 優先啟動瀏覽器內建語音（電腦版單字與長例句最穩定）
+  // 1. 優先啟動瀏覽器內建語音（電腦版與 iOS 系統內建語音晶片）
   let hasNative=false;
   try{
     if(typeof window!=='undefined'&&'speechSynthesis' in window&&typeof SpeechSynthesisUtterance!=='undefined'){
-      window.speechSynthesis.cancel();
+      // iOS 連續點擊若還在念上一句才 cancel，否則直接 speak 避免 iOS 卡死
+      if(window.speechSynthesis.speaking||window.speechSynthesis.pending){
+        window.speechSynthesis.cancel();
+      }
       utter=new SpeechSynthesisUtterance(text);
       utter.lang='en-US';
-      utter.rate=0.85;
+      utter.rate=isIOS?0.9:0.85;
       const vs=window.speechSynthesis.getVoices();
-      const ev=vs.find(v=>v.lang&&v.lang.includes('en-US'))||vs.find(v=>v.lang&&v.lang.includes('en'));
+      // 優先尋找 iOS 內建美式英語發音人 Samantha 或標準 en-US
+      const ev=vs.find(v=>v.name&&v.name.includes('Samantha'))
+             ||vs.find(v=>v.lang==='en-US'||v.lang==='en_US')
+             ||vs.find(v=>v.lang&&v.lang.startsWith('en'));
       if(ev)utter.voice=ev;
       utter.onstart=()=>{hasNative=true;showAudioStatus('🔊 正在播放');};
       utter.onend=()=>showAudioStatus('');
+      utter.onerror=()=>showAudioStatus('');
       window.speechSynthesis.speak(utter);
+      showAudioStatus('🔊 朗讀中...');
     }
   }catch(e){}
 
-  // 2. 針對手機或無內建語音環境：若為單字或短句，同時啟動線上音訊備援（0.25秒後若內建已出聲則自動靜音線上音訊，避免重疊）
-  const isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  if(isMobile || text.length <= 120){
-    playDirectAudio(text);
+  // 2. 非 iOS 的手機（如 Android）若內建無聲且為短句，才啟用線上備援
+  const isAndroid=/Android/i.test(navigator.userAgent);
+  if(isAndroid && text.length <= 120){
     setTimeout(()=>{
-      if(hasNative){
-        const a=document.getElementById('ios-audio');
-        if(a)a.pause();
-      }
-    },250);
+      if(!hasNative)playDirectAudio(text);
+    },300);
   }
 }
 function open_(i){cur=i;const w=W[i];
