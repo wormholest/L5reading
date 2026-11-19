@@ -1,5 +1,4 @@
-<html lang="zh-Hant">
-<head>
+<html lang="zh-Hant"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Lesson 5 Venice: A Sinking City 輔助學習</title>
 <style>
@@ -177,14 +176,62 @@ const zhOf=w=>(w.s[0].d.match(/^[^a-zA-Z]+/)||[''])[0].trim();
 vt.innerHTML=W.map((w,i)=>`<button class="tile" data-i="${i}">${w.x?'<em>比較</em>':''}<b>${i+1}. ${w.w}</b><span>${zhOf(w)}</span></button>`).join('');
 mk.onchange=()=>{vt.classList.toggle('mask',mk.checked);vt.querySelectorAll('.tile').forEach(t=>t.classList.remove('show'))};
 vt.onclick=e=>{const t=e.target.closest('.tile');if(!t)return;if(vt.classList.contains('mask')&&!t.classList.contains('show')){t.classList.add('show');return}open_(+t.dataset.i)};
-let cur=0;
-function speak(t){try{const u=new SpeechSynthesisUtterance(t);u.lang='en-US';u.rate=.85;speechSynthesis.cancel();speechSynthesis.speak(u)}catch(e){}}
-function open_(i){cur=i;const w=W[i];const sp='speechSynthesis' in window;
-cd.innerHTML=`<div class="ch"><button class="cx" onclick="closeC()">✕</button><h3>${i+1}. ${w.w}</h3><div class="ip">${w.ipa?'['+w.ipa+']':''} ${sp?`<button onclick="speak('${w.w}')">🔊 發音</button>`:''}</div></div><div class="cb">`+
-w.s.map(s=>`<div class="sn"><span class="pos">${s.pos}</span> ${s.w!=w.w?`<b class="en">${s.w}</b> ${s.ipa?'['+s.ipa+']':''}`:''}<div class="d">${s.d}</div>${s.ex.map(e=>`<div class="e"><div class="en">${e[0]} ${sp?`<a href="#" onclick="speak(this.dataset.t);return false" data-t="${e[0].replace(/"/g,'&quot;')}">🔊</a>`:''}</div><div>${e[1]}</div></div>`).join('')}</div>`).join('')+
+let cur=0,utter=null;
+if(typeof window!=='undefined'&&'speechSynthesis' in window){try{window.speechSynthesis.getVoices();window.speechSynthesis.onvoiceschanged=()=>{try{window.speechSynthesis.getVoices()}catch(e){}}}catch(e){}}
+
+function showAudioStatus(msg){
+  const el=document.getElementById('sp-status');
+  if(el)el.textContent=msg;
+}
+
+function playDirectAudio(text){
+  try{
+    let a=document.getElementById('ios-audio');
+    if(!a){
+      a=document.createElement('audio');
+      a.id='ios-audio';
+      a.setAttribute('playsinline','');
+      a.preload='auto';
+      document.body.appendChild(a);
+    }
+    a.pause();
+    // 直接設定 src 並同步呼叫 play()，繞過 iOS file:// 的 fetch 封鎖與非同步阻擋
+    a.src=`https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(text)}&type=2`;
+    showAudioStatus('🔊 載入發音中...');
+    a.onplaying=()=>showAudioStatus('🔊 正在播放');
+    a.onended=()=>showAudioStatus('');
+    a.onerror=()=>{
+      // 若第一個來源受阻，切換第二備援語音線路
+      a.onerror=()=>showAudioStatus('⚠️ 請確認 iPhone 左側靜音鍵已關閉');
+      a.src=`https://translate.google.com/translate_tts?ie=UTF-8&tl=en-US&client=tw-ob&q=${encodeURIComponent(text)}`;
+      a.play().catch(()=>showAudioStatus('⚠️ 播放受阻，請檢查網路或靜音鍵'));
+    };
+    const p=a.play();
+    if(p&&p.catch)p.catch(()=>{});
+  }catch(e){
+    showAudioStatus('⚠️ 無法播放音訊');
+  }
+}
+
+function speak(t, isWord=false){
+  const text=String(t).replace(/\*/g,'').trim();
+  if(!text)return;
+  // iOS Safari / Brave 必須在點擊當下同步啟動 HTML5 Audio，否則必定無聲
+  playDirectAudio(text);
+
+  // 同時僅作為離線無網路時的輔助（若在線音檔失敗且離線引擎可用）
+  try{
+    if(typeof window!=='undefined'&&'speechSynthesis' in window&&typeof SpeechSynthesisUtterance!=='undefined'){
+      window.speechSynthesis.cancel();
+    }
+  }catch(e){}
+}
+function open_(i){cur=i;const w=W[i];
+cd.innerHTML=`<div class="ch"><button class="cx" onclick="closeC()">✕</button><h3>${i+1}. ${w.w}</h3><div class="ip">${w.ipa?'['+w.ipa+']':''} <button onclick="speak('${w.w.replace(/\*/g,'')}', true)">🔊 發音</button><span id="sp-status" style="font-size:15px;margin-left:8px;opacity:.9"></span></div></div><div class="cb">`+
+w.s.map(s=>`<div class="sn"><span class="pos">${s.pos}</span> ${s.w!=w.w?`<b class="en">${s.w}</b> ${s.ipa?'['+s.ipa+']':''}`:''}<div class="d">${s.d}</div>${s.ex.map(e=>`<div class="e"><div class="en">${e[0]} <a href="#" onclick="speak(this.dataset.t, false);return false" data-t="${e[0].replace(/"/g,'&quot;')}">🔊</a></div><div>${e[1]}</div></div>`).join('')}</div>`).join('')+
 `<div class="sec">解析</div><div>${w.u}</div>`+(w.x?`<div class="sec">易混淆與字族</div>${w.x}`:'')+`</div><div class="cf"><button class="btn" onclick="open_((cur+28)%29)">← 上一個</button><button class="btn" onclick="closeC()">關閉</button><button class="btn" onclick="open_((cur+1)%29)">下一個 →</button></div>`;
 ov.classList.add('on');ov.scrollTop=0}
-function closeC(){ov.classList.remove('on');speechSynthesis&&speechSynthesis.cancel&&speechSynthesis.cancel()}
+function closeC(){ov.classList.remove('on');try{const a=document.getElementById('ios-audio');if(a)a.pause();if(typeof window!=='undefined'&&'speechSynthesis' in window)window.speechSynthesis.cancel()}catch(e){}}
 ov.onclick=e=>{if(e.target===ov)closeC()};document.addEventListener('keydown',e=>{if(e.key=='Escape')closeC()});
 /*ANA*/
 const AN=D.an,aw=document.getElementById('anw');let lastP='';
