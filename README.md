@@ -195,36 +195,52 @@ function playDirectAudio(text){
       document.body.appendChild(a);
     }
     a.pause();
-    // 直接設定 src 並同步呼叫 play()，繞過 iOS file:// 的 fetch 封鎖與非同步阻擋
     a.src=`https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(text)}&type=2`;
     showAudioStatus('🔊 載入發音中...');
     a.onplaying=()=>showAudioStatus('🔊 正在播放');
     a.onended=()=>showAudioStatus('');
     a.onerror=()=>{
-      // 若第一個來源受阻，切換第二備援語音線路
-      a.onerror=()=>showAudioStatus('⚠️ 請確認 iPhone 左側靜音鍵已關閉');
+      a.onerror=()=>showAudioStatus('⚠️ 線上語音受阻');
       a.src=`https://translate.google.com/translate_tts?ie=UTF-8&tl=en-US&client=tw-ob&q=${encodeURIComponent(text)}`;
-      a.play().catch(()=>showAudioStatus('⚠️ 播放受阻，請檢查網路或靜音鍵'));
+      a.play().catch(()=>showAudioStatus(''));
     };
     const p=a.play();
     if(p&&p.catch)p.catch(()=>{});
-  }catch(e){
-    showAudioStatus('⚠️ 無法播放音訊');
-  }
+  }catch(e){}
 }
 
 function speak(t, isWord=false){
   const text=String(t).replace(/\*/g,'').trim();
   if(!text)return;
-  // iOS Safari / Brave 必須在點擊當下同步啟動 HTML5 Audio，否則必定無聲
-  playDirectAudio(text);
 
-  // 同時僅作為離線無網路時的輔助（若在線音檔失敗且離線引擎可用）
+  // 1. 優先啟動瀏覽器內建語音（電腦版單字與長例句最穩定）
+  let hasNative=false;
   try{
     if(typeof window!=='undefined'&&'speechSynthesis' in window&&typeof SpeechSynthesisUtterance!=='undefined'){
       window.speechSynthesis.cancel();
+      utter=new SpeechSynthesisUtterance(text);
+      utter.lang='en-US';
+      utter.rate=0.85;
+      const vs=window.speechSynthesis.getVoices();
+      const ev=vs.find(v=>v.lang&&v.lang.includes('en-US'))||vs.find(v=>v.lang&&v.lang.includes('en'));
+      if(ev)utter.voice=ev;
+      utter.onstart=()=>{hasNative=true;showAudioStatus('🔊 正在播放');};
+      utter.onend=()=>showAudioStatus('');
+      window.speechSynthesis.speak(utter);
     }
   }catch(e){}
+
+  // 2. 針對手機或無內建語音環境：若為單字或短句，同時啟動線上音訊備援（0.25秒後若內建已出聲則自動靜音線上音訊，避免重疊）
+  const isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  if(isMobile || text.length <= 120){
+    playDirectAudio(text);
+    setTimeout(()=>{
+      if(hasNative){
+        const a=document.getElementById('ios-audio');
+        if(a)a.pause();
+      }
+    },250);
+  }
 }
 function open_(i){cur=i;const w=W[i];
 cd.innerHTML=`<div class="ch"><button class="cx" onclick="closeC()">✕</button><h3>${i+1}. ${w.w}</h3><div class="ip">${w.ipa?'['+w.ipa+']':''} <button onclick="speak('${w.w.replace(/\*/g,'')}', true)">🔊 發音</button><span id="sp-status" style="font-size:15px;margin-left:8px;opacity:.9"></span></div></div><div class="cb">`+
