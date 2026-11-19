@@ -318,7 +318,7 @@ nav.onclick=e=>{if(e.target.dataset.t)go(e.target.dataset.t)};
 build();go(T.some(t=>t[0]==location.hash.slice(1))?location.hash.slice(1):"read");
 </script>
 <footer>
-  <p>© 2026＠Maxine</p>
+    <p>&copy; 2026 @Maxine</p>
 </footer>
 </body>
 </html>
