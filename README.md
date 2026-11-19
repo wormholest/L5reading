@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8">
+<html lang="zh-Hant">
+<head>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Lesson 5 Venice: A Sinking City 輔助學習</title>
 <style>
@@ -231,4 +232,9 @@ nav.innerHTML=T.map(t=>`<button data-t="${t[0]}">${t[1]}</button>`).join('');
 function go(id){document.querySelectorAll('section').forEach(s=>s.classList.toggle('on',s.id==id));nav.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.t==id));try{history.replaceState(null,'','#'+id)}catch(e){}window.scrollTo(0,0)}
 nav.onclick=e=>{if(e.target.dataset.t)go(e.target.dataset.t)};
 build();go(T.some(t=>t[0]==location.hash.slice(1))?location.hash.slice(1):"read");
-</script><<footer><p>© 2026＠Maxine</p></footer>/body></html>
+</script>
+<footer>
+  <p>© 2026＠Maxine</p>
+</footer>
+</body>
+</html>
